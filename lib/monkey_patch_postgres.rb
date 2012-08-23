@@ -36,7 +36,7 @@ module ActiveRecord::ConnectionAdapters
     # @param [String] sequence_name the name of the sequence to fetch the next value from
     # @return [Integer] the value from the sequence
     def next_sequence_value(sequence_name)
-      return execute("select nextval('#{sequence_name}')").field_values("nextval").first
+      return execute("select nextval('#{sequence_name}')").field_values("nextval").first.to_i
     end
 
     #

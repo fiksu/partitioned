@@ -45,12 +45,12 @@ module ActiveRecord::ConnectionAdapters
       describe "next_sequence_value" do
 
         it "returns next_sequence_value" do
-          ActiveRecord::Base.connection.next_sequence_value(Employee.sequence_name).should == "1"
+          ActiveRecord::Base.connection.next_sequence_value(Employee.sequence_name).should == 1
           ActiveRecord::Base.connection.execute <<-SQL
             insert into employees(name, company_id) values ('Nikita', 1);
           SQL
-          ActiveRecord::Base.connection.next_sequence_value(Employee.sequence_name).should == "3"
-          ActiveRecord::Base.connection.next_sequence_value(Employee.sequence_name).should == "4"
+          ActiveRecord::Base.connection.next_sequence_value(Employee.sequence_name).should == 3
+          ActiveRecord::Base.connection.next_sequence_value(Employee.sequence_name).should == 4
         end
 
       end # next_sequence_value
