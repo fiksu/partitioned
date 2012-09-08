@@ -27,7 +27,6 @@ module Partitioned
   # statements are built (to determine the table_name with respect to values being inserted or updated)
   #
   class PartitionedBase < ActiveRecord::Base
-    include ActiveRecordOverrides
     extend Partitioned::BulkMethodsMixin
 
     self.abstract_class = true
@@ -38,30 +37,8 @@ module Partitioned
     #
     # @return [String] the column name used to partition this table
     # @return [Array<String>] the column names used to partition this table
-    def self.partition_keys
+    def self.table_partition_keys
       return configurator.on_fields
-    end
-
-    #
-    # The specific values for a partition of this active record's type which are defined by
-    # {#self.partition_keys}
-    #
-    # @param [Hash] values key/value pairs to extract values from
-    # @return [Object] value of partition key
-    # @return [Array<Object>] values of partition keys
-    def self.partition_key_values(values)
-      symbolized_values = values.symbolize_keys
-      return self.partition_keys.map{|key| symbolized_values[key.to_sym]}
-    end
-
-    #
-    # The name of the current partition table determined by this active records attributes that
-    # define the key value(s) for the constraint check.
-    #
-    # @return [String] the fully qualified name of the database table, ie: foos_partitions.p17
-    def partition_table_name
-      symbolized_attributes = attributes.symbolize_keys
-      return self.class.partition_table_name(*self.class.partition_keys.map{|attribute_name| symbolized_attributes[attribute_name]})
     end
 
     #
@@ -104,86 +81,6 @@ module Partitioned
     def self.sql_adapter
       @sql_adapter = self::SqlAdapter.new(self) unless @sql_adapter.present?
       return @sql_adapter
-    end
-
-    #
-    # In activerecord 3.0 we need to supply an Arel::Table for the key value(s) used
-    # to determine the specific child table to access.
-    #
-    # @param [Hash] values key/value pairs for all attributes
-    # @param [String] as (nil) the name of the table associated with this Arel::Table
-    # @return [Arel::Table] the generated Arel::Table
-    def self.dynamic_arel_table(values, as = nil)
-      @arel_tables ||= {}
-      key_values = self.partition_key_values(values)
-      new_arel_table = @arel_tables[key_values]
-      arel_engine_hash = {:engine => self.arel_engine}
-      arel_engine_hash[:as] = as unless as.blank?
-      new_arel_table = Arel::Table.new(self.partition_table_name(*key_values), arel_engine_hash)
-      return new_arel_table
-    end
-
-    #
-    # Used by our active record hacks to supply an Arel::Table given this active record's
-    # current attributes.
-    #
-    # @param [String] as (nil) the name of the table associated with the Arel::Table
-    # @return [Arel::Table] the generated Arel::Table
-    def dynamic_arel_table(as = nil)
-      symbolized_attributes = attributes.symbolize_keys
-      key_values = Hash[*self.class.partition_keys.map{|name| [name,symbolized_attributes[name]]}.flatten]
-      return self.class.dynamic_arel_table(key_values, as)
-    end
-
-    #
-    # This scoping is used to target the
-    # active record find() to a specific child table and alias it to the name of the
-    # parent table (so activerecord can generally work with it)
-    #
-    # Use as:
-    #
-    #   Foo.from_partition(KEY).find(:first)
-    #
-    # where KEY is the key value(s) used as the check constraint on Foo's table.
-    #
-    # @param [*Array<Object>] partition_field the field values to partition on
-    # @return [Hash] the scoping
-    def self.from_partition(*partition_field)
-      table_alias_name = partition_table_alias_name(*partition_field)
-      from("#{partition_table_name(*partition_field)} AS #{table_alias_name}").
-        tap{|relation| relation.table.table_alias = table_alias_name}
-    end
-
-    #
-    # This scope is used to target the
-    # active record find() to a specific child table. Is probably best used in advanced
-    # activerecord queries when a number of tables are involved in the query.
-    #
-    # Use as:
-    #
-    #   Foo.from_partitioned_without_alias(KEY).find(:all, :select => "*")
-    #
-    # where KEY is the key value(s) used as the check constraint on Foo's table.
-    #
-    # it's not obvious why :select => "*" is supplied.  note activerecord wants
-    # to use the name of parent table for access to any attributes, so without
-    # the :select argument the sql result would be something like:
-    #
-    #   SELECT foos.* FROM foos_partitions.pXXX
-    #
-    # which fails because table foos is not referenced.  using the form #from_partition
-    # is almost always the correct thing when using activerecord.
-    #
-    # Because the scope is specific to a class (a class method) but unlike
-    # class methods is not inherited, one  must use this form (#from_partitioned_without_alias) instead
-    # of #from_partitioned_without_alias_scope to get the most derived classes specific active record scope.
-    #
-    # @param [*Array<Object>] partition_field the field values to partition on
-    # @return [Hash] the scoping
-    def self.from_partitioned_without_alias(*partition_field)
-      table_alias_name = partition_table_name(*partition_field)
-      from(table_alias_name).
-        tap{|relation| relation.table.table_alias = table_alias_name}
     end
 
     #
@@ -426,16 +323,18 @@ module Partitioned
     end
 
     ##
-    # :method: partition_table_name
-    # delegated to Partitioned::PartitionedBase::PartitionManager#partition_table_name
-    def self.partition_table_name(*partition_key_values)
+    # :method: table_name
+    # delegated to Partitioned::PartitionedBase::PartitionManager#table_name
+    def self.table_name(*partition_key_values)
+      retval = super
+      return retval if partition_key_values.blank?
       return partition_manager.partition_table_name(*partition_key_values)
     end
 
     ##
     # :method: partition_table_alias_name
     # delegated to Partitioned::PartitionedBase::PartitionManager#partition_table_alias_name
-    def self.partition_table_alias_name(*partition_key_values)
+    def self.table_alias_name(*partition_key_values)
       return partition_manager.partition_table_alias_name(*partition_key_values)
     end
   end

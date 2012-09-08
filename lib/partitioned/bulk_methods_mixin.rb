@@ -81,7 +81,7 @@ module Partitioned
         # set :created_at if need be
         row[:created_at] ||= created_at_value
       end.group_by do |row|
-        respond_to?(:partition_table_name) ? partition_table_name(*partition_key_values(row)) : table_name
+        table_name(*table_partition_key_values(row))
       end.each do |table_name, rows_for_table|
         column_names = rows_for_table[0].keys.sort{|a,b| a.to_s <=> b.to_s}
         sql_insert_string = "insert into #{table_name} (#{column_names.join(',')}) values "
@@ -189,7 +189,7 @@ module Partitioned
       returning = []
 
       rows.group_by do |row|
-        respond_to?(:partition_table_name) ? partition_table_name(*partition_key_values(row)) : table_name
+        table_name(*table_partition_key_values(row))
       end.each do |table_name, rows_for_table|
         column_names = rows_for_table[0].keys.sort{|a,b| a.to_s <=> b.to_s}
         rows_for_table.each_slice(options[:slice_size]) do |update_slice|
