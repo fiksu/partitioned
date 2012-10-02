@@ -23,9 +23,13 @@ module Partitioned
             {
               "on_field" => nil,
               "indexes" => [],
+              "janitorial_archives_needed" => nil,
+              "janitorial_creates_needed" => nil,
+              "janitorial_drops_needed" => nil,
               "foreign_keys" => [],
               "last_partitions_order_by_clause" => nil,
               "schema_name" => nil,
+              "table_alias_name" => nil,
               "name_prefix" => nil,
               "base_name" => nil,
               "part_name" => nil,

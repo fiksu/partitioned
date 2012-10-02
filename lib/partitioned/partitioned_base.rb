@@ -1,6 +1,7 @@
 #
 # :include: ../../README
 #
+require "bulk_data_methods"
 
 module Partitioned
   #
@@ -19,7 +20,7 @@ module Partitioned
   # Uses a domain specific language to configure, see Partitioned::PartitionedBase::Configurator
   # for more information.
   #
-  # Extends Partitioned::BulkMethodsMixin to provide create_many and update_many.
+  # Extends BulkMethodsMixin to provide create_many and update_many.
   #
   # Uses PartitionManager to manage creation of child tables.
   #
@@ -28,7 +29,7 @@ module Partitioned
   #
   class PartitionedBase < ActiveRecord::Base
     include ActiveRecordOverrides
-    extend Partitioned::BulkMethodsMixin
+    extend ::BulkMethodsMixin
 
     self.abstract_class = true
 

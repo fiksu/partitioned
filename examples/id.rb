@@ -150,7 +150,7 @@
 #
 #  update_many - allows you to update multiple records.
 #  :set_array - additional option, you may read the description
-#  of the method in the file update_many bulk_methods_mixin.rb about this option.
+#  of the method update_many in the gem bulk_data_methods about this option.
 #  Employee.update_many(updates, {:set_array => '"salary = #{table_name}.salary +
 #                                         datatable.salary, updated_at = now()"'})
 #
