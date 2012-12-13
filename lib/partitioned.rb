@@ -11,6 +11,7 @@ require 'partitioned/partitioned_base/partition_manager'
 require 'partitioned/partitioned_base/sql_adapter'
 
 require 'partitioned/by_time_field'
+require 'partitioned/by_yearly_time_field'
 require 'partitioned/by_monthly_time_field'
 require 'partitioned/by_weekly_time_field'
 require 'partitioned/by_created_at'

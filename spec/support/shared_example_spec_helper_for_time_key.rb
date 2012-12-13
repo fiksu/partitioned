@@ -121,7 +121,7 @@ shared_examples_for "check that basic operations with postgres works correctly f
   context "when try to create new record outside the range of partitions" do
 
     it "raises ActiveRecord::StatementInvalid" do
-      lambda { subject.create_many([{ :created_at => DATE_NOW + 1.year, :company_id => 1 }])
+      lambda { subject.create_many([{ :created_at => DATE_NOW - 1.year, :company_id => 1 }])
       }.should raise_error(ActiveRecord::StatementInvalid)
     end
 
@@ -130,7 +130,7 @@ shared_examples_for "check that basic operations with postgres works correctly f
   context "when try to update a record outside the range of partitions" do
 
     it "raises ActiveRecord::StatementInvalid" do
-      lambda { subject.update(1, :name => 'Kevin', :created_at => DATE_NOW + 1.year)
+      lambda { subject.update(1, :name => 'Kevin', :created_at => DATE_NOW - 1.year)
       }.should raise_error(ActiveRecord::StatementInvalid)
     end
 
@@ -139,7 +139,7 @@ shared_examples_for "check that basic operations with postgres works correctly f
   context "when try to find a record outside the range of partitions" do
 
     it "raises ActiveRecord::StatementInvalid" do
-      lambda { subject.from_partition(DATE_NOW + 1.year).find(1)
+      lambda { subject.from_partition(DATE_NOW - 1.year).find(1)
       }.should raise_error(ActiveRecord::StatementInvalid)
     end
 
