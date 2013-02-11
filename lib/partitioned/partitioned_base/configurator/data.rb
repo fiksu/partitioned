@@ -13,6 +13,18 @@ module Partitioned
             @options = options
           end
         end
+
+        # Represents a base_name sort order.  Currently, the only available types are
+        # :alphabetical, :integral, or a Proc, and the only option is :direction,
+        # which may be set to :ascending or :descending.
+        class Order
+          attr_accessor :order_type, :options
+          def initialize(order_type, options = {})
+            @order_type = order_type
+            @options = options
+          end
+        end
+
         # represents a SQL foreign key reference
         class ForeignKey
           attr_accessor :referencing_field, :referenced_table, :referenced_field
@@ -38,8 +50,8 @@ module Partitioned
           end
         end
 
-        attr_accessor :on_field, :indexes, :foreign_keys, :last_partitions_order_by_clause,
-           :schema_name, :name_prefix, :base_name,
+        attr_accessor :on_field, :indexes, :foreign_keys, :order_type,
+           :schema_name, :name_prefix, :base_name, :key_value,
            :part_name, :table_name, :table_alias_name, :parent_table_schema_name,
            :parent_table_name, :check_constraint, :encoded_name,
            :janitorial_creates_needed, :janitorial_archives_needed, :janitorial_drops_needed,
@@ -49,12 +61,13 @@ module Partitioned
           @on_field = nil
           @indexes = []
           @foreign_keys = []
-          @last_partitions_order_by_clause = nil
+          @order_type = nil
 
           @schema_name = nil
 
           @name_prefix = nil
           @base_name = nil
+          @key_value = nil
 
           @part_name = nil
 

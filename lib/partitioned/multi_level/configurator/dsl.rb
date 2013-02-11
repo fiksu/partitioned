@@ -36,7 +36,6 @@ module Partitioned
         def on(*ignored)
           raise InvalidForMultiLevelPartitioning.new(model, :on, "the partitioned keyword 'using' is used to define multi-level partitioned tables.")
         end
-        
       end
     end
   end

@@ -31,7 +31,11 @@ module Partitioned
     partitioned do |partition|
       partition.on lambda {|model| return model.partition_integer_field }
 
-      partition.order "substring(tablename, 2)::integer desc"
+      partition.order :integral, :direction => :descending
+
+      partition.key_value lambda {|model, base_name|
+        return base_name.to_i
+      }
 
       partition.check_constraint lambda { |model, id|
         value = model.partition_normalize_key_value(id)

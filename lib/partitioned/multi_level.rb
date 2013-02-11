@@ -5,18 +5,5 @@ module Partitioned
   # 
   class MultiLevel < PartitionedBase
     self.abstract_class = true
-
-    #
-    # Normalize the values for the each of using class.
-    #
-    # @param [Array<Object>] value the partition key values
-    # @return [Array<Object>] the normalized values for the key values passed in
-    def self.partition_normalize_key_value(values)
-      normalized_values = []
-      [*values].each_with_index do |value,index|
-        normalized_values << configurator.using_class(index).partition_normalize_key_value(value)
-      end
-      return normalized_values
-    end
   end
 end
