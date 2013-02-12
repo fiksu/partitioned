@@ -88,9 +88,9 @@ module Partitioned
         def foreign_keys(*partition_key_values)
           return collect_from_collection(*partition_key_values, &:foreign_keys).inject(Set.new) do |set,new_items|
             if new_items.is_a? Array
-              set += Set.new(new_items)
+              set += new_items
             else
-              set += Set.new([new_items])
+              set += [new_items]
             end
             set
           end
