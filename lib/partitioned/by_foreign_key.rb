@@ -16,7 +16,7 @@ module Partitioned
     end
 
     partitioned do |partition|
-      partition.foreign_key lambda {|model, foreign_key_value|
+      partition.foreign_key lambda {|model|
         return Configurator::Data::ForeignKey.new(model.partition_foreign_key,
                                                   ActiveSupport::Inflector::pluralize(model.partition_foreign_key.to_s.sub(/_id$/,'')),
                                                   :id)

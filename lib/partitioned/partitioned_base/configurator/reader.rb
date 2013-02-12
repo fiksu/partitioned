@@ -59,8 +59,8 @@ module Partitioned
         #
         # Define an index to be created on all (leaf-) child tables.
         #
-        def indexes(*partition_key_values)
-          return collect_from_collection(*partition_key_values, &:indexes).inject({}) do |bag, data_index|
+        def indexes
+          return collect_from_collection(&:indexes).inject({}) do |bag, data_index|
             bag[data_index.field] = (data_index.options || {}) unless data_index.blank?
             bag
           end
@@ -85,8 +85,8 @@ module Partitioned
         #
         # Define a foreign key on a (leaf-) child table.
         #
-        def foreign_keys(*partition_key_values)
-          return collect_from_collection(*partition_key_values, &:foreign_keys).inject(Set.new) do |set,new_items|
+        def foreign_keys
+          return collect_from_collection(&:foreign_keys).inject(Set.new) do |set,new_items|
             if new_items.is_a? Array
               set += new_items
             else

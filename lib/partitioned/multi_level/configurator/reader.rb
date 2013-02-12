@@ -123,10 +123,10 @@ module Partitioned
         #
         # Indexes to create on each leaf partition.
         #
-        def indexes(*partition_key_values)
+        def indexes
           bag = {}
-          partition_key_values.each_with_index do |value,index|
-            bag.merge!(using_configurator(index).indexes(value))
+          using_configurators.each do |configurator|
+            bag.merge!(configurator.indexes)
           end
           return bag
         end
@@ -134,10 +134,10 @@ module Partitioned
         #
         # Foreign keys to create on each leaf partition.
         #
-        def foreign_keys(*partition_key_values)
+        def foreign_keys
           set = Set.new
-          partition_key_values.each_with_index do |value,index|
-            set.merge(using_configurator(index).foreign_keys(value))
+          using_configurators.each do |configurator|
+            set.merge(configurator.foreign_keys)
           end
           return set
         end
@@ -190,7 +190,10 @@ module Partitioned
               partition_class.configurator = self.class.new(partition_class, self)
               partition_class.table_name = self.model.table_name
               partition_class::Configurator::Reader.new(partition_class)
-            end            
+            end
+
+            @using_classes << self.model
+            @using_configurators << Partitioned::PartitionedBase::Configurator::Reader.new(self.model)
           end
         end
       end

@@ -190,7 +190,7 @@ module Partitioned
       # need indexes as parent table indexes are not used in postgres.
       #
       def add_partition_table_index(*partition_key_values)
-        configurator.indexes(*partition_key_values).each do |field,options|
+        configurator.indexes.each do |field,options|
           used_options = options.clone
           unless used_options.has_key?(:name)
             name = [*field].join('_')
@@ -275,7 +275,7 @@ module Partitioned
       # such a supervisor would have to work for the same company in our model).
       #
       def add_references_to_partition_table(*partition_key_values)
-        configurator.foreign_keys(*partition_key_values).each do |foreign_key|
+        configurator.foreign_keys.each do |foreign_key|
           add_foreign_key(partition_table_name(*partition_key_values),
                           foreign_key.referencing_field,
                           foreign_key.referenced_table,
