@@ -55,7 +55,7 @@ module Partitioned
     partitioned do |partition|
       partition.on lambda {|model| model.partition_time_field}
 
-      partition.index lambda {|model|
+      partition.index lambda {|model, *partition_key_values|
         return Configurator::Data::Index.new(model.partition_time_field, {})
       }
 

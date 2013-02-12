@@ -98,6 +98,11 @@ module Partitioned
           return using_configurator(index).check_constraint(value)
         end
 
+        def child_partitions_order_type(*partition_key_values)
+          index = partition_key_values.length
+          return using_configurator(index).child_partitions_order_type(*partition_key_values)
+        end
+        
         #
         # The name of the child table without the schema name or name prefix.
         #
@@ -123,10 +128,10 @@ module Partitioned
         #
         # Indexes to create on each leaf partition.
         #
-        def indexes
+        def indexes(*partition_key_values)
           bag = {}
           using_configurators.each do |configurator|
-            bag.merge!(configurator.indexes)
+            bag.merge!(configurator.indexes(*partition_key_values))
           end
           return bag
         end
@@ -134,10 +139,10 @@ module Partitioned
         #
         # Foreign keys to create on each leaf partition.
         #
-        def foreign_keys
+        def foreign_keys(*partition_key_values)
           set = Set.new
           using_configurators.each do |configurator|
-            set.merge(configurator.foreign_keys)
+            set.merge(configurator.foreign_keys(*partition_key_values))
           end
           return set
         end

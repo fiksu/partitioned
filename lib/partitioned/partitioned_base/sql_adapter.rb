@@ -94,8 +94,7 @@ module Partitioned
 
       def child_partition_command(*partition_key_values)
         <<-SQL
-          SELECT pg_namespace.nspname || '.' || table_class.relname AS tablename,
-          SPLIT_PART(SUBSTRING(table_class.relname, #{configurator.name_prefix.length + 1}), '_', #{partition_key_values.count + 1}) AS order_string
+          SELECT pg_namespace.nspname || '.' || table_class.relname AS tablename
           FROM pg_class AS table_class
             INNER JOIN pg_namespace ON pg_namespace.oid = table_class.relnamespace
             INNER JOIN pg_inherits ON pg_inherits.inhrelid = table_class.oid
@@ -103,8 +102,8 @@ module Partitioned
           WHERE table_class.relkind = 'r' 
             AND pg_namespace.nspname = '#{configurator.schema_name}'
             AND parent_class.relname = 
-              '#{partition_key_values.length > 0 ? configurator.part_name(*partition_key_values) : configurator.parent_table_name}'
-          ORDER BY #{child_partitions_order_by_clause}
+              '#{partition_key_values.length > 0 ? configurator.part_name(*partition_key_values) : configurator.parent_table_name(*partition_key_values)}'
+          ORDER BY #{child_partitions_order_by_clause(*partition_key_values)}
         SQL
       end
 
@@ -112,14 +111,15 @@ module Partitioned
       # Override this or order the tables from last (greatest value? greatest date?) to first.
       #
       def child_partitions_order_by_clause(*partition_key_values)
+        order_string = "SPLIT_PART(SUBSTRING(table_class.relname, #{configurator.name_prefix.length + 1}), '_', #{partition_key_values.count + 1})"
         order_type, options = configurator.child_partitions_order_type(*partition_key_values)
         case order_type
         when :sql
           return options[:value]
         when :integral
-          order_by = "order_string::integer"
+          order_by = "CAST(#{order_string} AS INT)"
         when :alphabetical
-          order_by = "order_string"
+          order_by = "#{order_string}"
         end
         if options[:direction] == :descending
           order_by += " DESC"
@@ -190,7 +190,7 @@ module Partitioned
       # need indexes as parent table indexes are not used in postgres.
       #
       def add_partition_table_index(*partition_key_values)
-        configurator.indexes.each do |field,options|
+        configurator.indexes(*partition_key_values).each do |field,options|
           used_options = options.clone
           unless used_options.has_key?(:name)
             name = [*field].join('_')
@@ -275,7 +275,7 @@ module Partitioned
       # such a supervisor would have to work for the same company in our model).
       #
       def add_references_to_partition_table(*partition_key_values)
-        configurator.foreign_keys.each do |foreign_key|
+        configurator.foreign_keys(*partition_key_values).each do |foreign_key|
           add_foreign_key(partition_table_name(*partition_key_values),
                           foreign_key.referencing_field,
                           foreign_key.referenced_table,
