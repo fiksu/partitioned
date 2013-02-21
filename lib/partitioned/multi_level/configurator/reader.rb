@@ -193,7 +193,7 @@ module Partitioned
             
             @using_classes = abstract_classes.map do |abstract_class| 
               partition_class = Class.new(abstract_class)
-              partition.table_name = self.model.table_name
+              partition_class.table_name = self.model.table_name
               partition_class.configurator = self.class.new(partition_class, self)
               partition_class
             end
