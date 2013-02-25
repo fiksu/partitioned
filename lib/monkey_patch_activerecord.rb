@@ -24,10 +24,15 @@ module ActiveRecord
         column     = self.class.columns_hash[pk]
         substitute = connection.substitute_at(column, 0)
 
-        using_arel_table = self.respond_to?(:dynamic_arel_table) ? dynamic_arel_table() : self.class.arel_table
-        relation = self.class.unscoped.where(
-          using_arel_table[pk].eq(substitute))
-
+        if self.class.respond_to?(:dynamic_arel_table)
+          using_arel_table = dynamic_arel_table()
+          relation = ActiveRecord::Relation.new(self.class, using_arel_table).
+            where(using_arel_table[pk].eq(substitute))
+        else
+          using_arel_table = self.class.arel_table
+          relation = self.class.unscoped.where(using_arel_table[pk].eq(substitute))
+        end
+        
         relation.bind_values = [[column, id]]
         relation.delete_all
       end

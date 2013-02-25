@@ -115,6 +115,19 @@ module Partitioned
       return @sql_adapter
     end
 
+    def self.arel_table_from_key_values(partition_key_values, as=nil)
+      @arel_tables ||= {}
+      new_arel_table = @arel_tables[[partition_key_values, as]]
+      
+      unless new_arel_table
+        arel_engine_hash = {:engine => self.arel_engine, :as => as}
+        new_arel_table = Arel::Table.new(self.partition_table_name(*partition_key_values), arel_engine_hash)
+        @arel_tables[[partition_key_values, as]] = new_arel_table
+      end
+
+      return new_arel_table
+    end
+
     #
     # In activerecord 3.0 we need to supply an Arel::Table for the key value(s) used
     # to determine the specific child table to access.
@@ -122,14 +135,9 @@ module Partitioned
     # @param [Hash] values key/value pairs for all attributes
     # @param [String] as (nil) the name of the table associated with this Arel::Table
     # @return [Arel::Table] the generated Arel::Table
-    def self.dynamic_arel_table(values, as = nil)
-      @arel_tables ||= {}
+    def self.dynamic_arel_table(values, as=nil)
       key_values = self.partition_key_values(values)
-      new_arel_table = @arel_tables[key_values]
-      arel_engine_hash = {:engine => self.arel_engine}
-      arel_engine_hash[:as] = as unless as.blank?
-      new_arel_table = Arel::Table.new(self.partition_table_name(*key_values), arel_engine_hash)
-      return new_arel_table
+      return arel_table_from_key_values(key_values, as)
     end
 
     #
@@ -138,10 +146,9 @@ module Partitioned
     #
     # @param [String] as (nil) the name of the table associated with the Arel::Table
     # @return [Arel::Table] the generated Arel::Table
-    def dynamic_arel_table(as = nil)
-      symbolized_attributes = attributes.symbolize_keys
-      key_values = Hash[*self.class.partition_keys.map{|name| [name,symbolized_attributes[name]]}.flatten]
-      return self.class.dynamic_arel_table(key_values, as)
+    def dynamic_arel_table(as=nil)
+      key_values = self.class.partition_key_values(attributes)
+      return self.class.arel_table_from_key_values(key_values, as)
     end
 
     #
@@ -157,10 +164,9 @@ module Partitioned
     #
     # @param [*Array<Object>] partition_field the field values to partition on
     # @return [Hash] the scoping
-    def self.from_partition(*partition_field)
-      table_alias_name = partition_table_alias_name(*partition_field)
-      from("#{partition_table_name(*partition_field)} AS #{table_alias_name}").
-        tap{|relation| relation.table.table_alias = table_alias_name}
+    def self.from_partition(*partition_key_values)
+      table_alias_name = partition_table_alias_name(*partition_key_values)
+      return ActiveRecord::Relation.new(self, self.arel_table_from_key_values(partition_key_values, table_alias_name))
     end
 
     #
@@ -185,10 +191,8 @@ module Partitioned
     #
     # @param [*Array<Object>] partition_field the field values to partition on
     # @return [Hash] the scoping
-    def self.from_partition_without_alias(*partition_field)
-      table_alias_name = partition_table_name(*partition_field)
-      from(table_alias_name).
-        tap{|relation| relation.table.table_alias = table_alias_name}
+    def self.from_partition_without_alias(*partition_key_values)
+      return ActiveRecord::Relation.new(self, self.arel_table_from_key_values(partition_key_values, nil))
     end
 
     #
@@ -321,7 +325,7 @@ module Partitioned
       # A reasonable alias for this table
       #
       partition.table_alias_name lambda {|model, *partition_key_values|
-        return model.configurator.parent_table_name(*partition_key_values).gsub('.', '_')
+        return model.table_name #configurator.parent_table_name(*partition_key_values).gsub('.', '_')
       }
 
       #
