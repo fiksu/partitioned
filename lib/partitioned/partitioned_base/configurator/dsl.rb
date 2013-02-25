@@ -344,8 +344,12 @@ module Partitioned
         # one might run a script once per day which calls Order.last_n_partition_names(10) and if any of the returned tables have any rows
         # (or the sequence is set into any of the ranges in the child table) it is time to create new child tables
         #
-        def order(clause)
-          data.last_partitions_order_by_clause = clause
+        def order(order_type, options = {})
+          if order_type.is_a? Proc
+            data.order_type = order_type
+          else
+            data.order_type = Partitioned::PartitionedBase::Configurator::Data::Order.new(order_type, options)
+          end
         end
 
         #
@@ -471,6 +475,11 @@ module Partitioned
         #
         def base_name(value)
           data.base_name = value
+        end
+
+        # Convert a base_name back to its original key value.
+        def key_value(value)
+          data.key_value = value
         end
 
         #

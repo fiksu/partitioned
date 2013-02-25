@@ -55,11 +55,15 @@ module Partitioned
     partitioned do |partition|
       partition.on lambda {|model| model.partition_time_field}
 
-      partition.index lambda {|model, time_field|
+      partition.index lambda {|model, *partition_key_values|
         return Configurator::Data::Index.new(model.partition_time_field, {})
       }
 
-      partition.order 'tablename desc'
+      partition.order :alphabetical, :direction => :ascending
+      
+      partition.key_value lambda { |model, base_name|
+        return Date.strptime(base_name, '%Y%m%d')
+      }
 
       partition.base_name lambda { |model, time_field|
         return model.partition_normalize_key_value(time_field).strftime('%Y%m%d')

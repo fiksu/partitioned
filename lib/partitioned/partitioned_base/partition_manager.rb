@@ -19,9 +19,9 @@ module Partitioned
       # uses #archive_old_partition_key_values_set as the list of
       # partitions to remove.
       #
-      def archive_old_partitions
-        archive_old_partition_key_values_set.each do |*partition_key_values|
-          archive_old_partition(*partition_key_values)
+      def archive_old_partitions(*partition_key_values)
+        archive_old_partition_key_values_set(*partition_key_values).each do |archive_old_partition_key_values|
+          archive_old_partition(*archive_old_partition_key_values)
         end
       end
 
@@ -30,9 +30,9 @@ module Partitioned
       # uses #old_partition_key_values_set as the list of
       # partitions to remove.
       #
-      def drop_old_partitions
-        old_partition_key_values_set.each do |*partition_key_values|
-          drop_old_partition(*partition_key_values)
+      def drop_old_partitions(*partition_key_values)
+        old_partition_key_values_set(*partition_key_values).each do |old_partition_key_values|
+          drop_old_partition(*old_partition_key_values)
         end
       end
 
@@ -42,9 +42,9 @@ module Partitioned
       # uses #new_partition_key_value_set to determine the key values
       # for the specific child tables to create.
       #
-      def create_new_partitions
-        new_partition_key_values_set.each do |*partition_key_values|
-         create_new_partition(*partition_key_values)
+      def create_new_partitions(*partition_key_values)
+        new_partition_key_values_set(*partition_key_values).each do |new_partition_key_values|
+          create_new_partition(*new_partition_key_values)
         end
       end
 
@@ -68,14 +68,28 @@ module Partitioned
       end
 
       #
+      # Extract the base name from a given partition name.
+      #
+      def base_name_from_partition_name(partition_name)
+        partition_name.sub("#{configurator.schema_name}.", "")[configurator.name_prefix.length..-1]
+      end
+
+      #
+      # Convert a given partition name back into an array of its original key values.
+      #
+      def key_values_from_partition_name(partition_name)
+        return configurator.key_value(base_name_from_partition_name(partition_name))
+      end
+
+      #
       # An array of key values (each key value is an array of keys) that represent
       # the child partitions that should be created.
       #
       # Used by #create_new_partitions and generally called once a day to update
       # the database with new soon-to-be needed child tables.
       #
-      def new_partition_key_values_set
-        return configurator.janitorial_creates_needed
+      def new_partition_key_values_set(*partition_key_values)
+        return configurator.janitorial_creates_needed(*partition_key_values)
       end
 
       #
@@ -86,8 +100,8 @@ module Partitioned
       # Used by #archive_old_partitions and generally called once a day to clean up
       # unneeded child tables.
       #
-      def archive_old_partition_key_values_set
-        return configurator.janitorial_archives_needed
+      def archive_old_partition_key_values_set(*partition_key_values)
+        return configurator.janitorial_archives_needed(*partition_key_values)
       end
 
       #
@@ -97,8 +111,8 @@ module Partitioned
       # Used by #drop_old_partitions and generally called once a day to clean up
       # unneeded child tables.
       #
-      def old_partition_key_values_set
-        return configurator.janitorial_drops_needed
+      def old_partition_key_values_set(*partition_key_values)
+        return configurator.janitorial_drops_needed(*partition_key_values)
       end
 
       #
@@ -125,10 +139,37 @@ module Partitioned
       #
       def create_new_partition(*partition_key_values)
         create_partition_table(*partition_key_values)
-        add_partition_table_index(*partition_key_values)
-        add_references_to_partition_table(*partition_key_values)
-        configurator.run_after_partition_table_create_hooks(*partition_key_values)
+        if is_leaf_partition?(*partition_key_values)
+          add_partition_table_index(*partition_key_values)  
+          add_references_to_partition_table(*partition_key_values)
+          configurator.run_after_partition_table_create_hooks(*partition_key_values)
+        else
+          add_parent_table_rules(*partition_key_values)
+        end
       end
+
+      #
+      # Is the table a child table without itself having any children.
+      # generally leaf tables are where all indexes and foreign key
+      # constraints will be placed because that is where the data will be.
+      #
+      # Non leaf tables will typically have a rule placed on them
+      # (via add_parent_table_rules) that prevents any inserts from occurring
+      # on them.
+      #
+      # @param [*Array<Object>] partition_key_values all key values specifying a given child table
+      # @return [Boolean] true if this partition should contain records
+      def is_leaf_partition?(*partition_key_values)
+        return partition_key_values.length == parent_table_class.configurator.on_fields.length
+      end
+
+      ##
+      # :method: last_n_child_partition_names
+      # delegated to Partitioned::PartitionedBase::PartitionManager::SqlAdapter#last_n_child_partition_names
+
+      ##
+      # :method: child_partition_names
+      # delegated to Partitioned::PartitionedBase::PartitionManager::SqlAdapter#child_partition_names
 
       ##
       # :method: drop_partition_table
@@ -142,7 +183,7 @@ module Partitioned
       # :method: add_partition_table_index
       # delegated to Partitioned::PartitionedBase::PartitionManager::SqlAdapter#add_partition_table_index
 
-      ##
+      ##select table_class.oid,
       # :method: add_references_to_partition_table
       # delegated to Partitioned::PartitionedBase::PartitionManager::SqlAdapter#add_references_to_partition_table
 
@@ -174,7 +215,8 @@ module Partitioned
       def_delegators :parent_table_class, :sql_adapter, :configurator
       def_delegators :sql_adapter, :drop_partition_table, :create_partition_table, :add_partition_table_index,
          :add_references_to_partition_table, :create_partition_schema, :add_parent_table_rules,
-         :partition_table_name, :partition_table_alias_name
+         :partition_table_name, :partition_table_alias_name, :last_n_child_partition_names,
+         :child_partition_names, :partition_exists?
 
     end
   end

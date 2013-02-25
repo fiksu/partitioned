@@ -48,6 +48,7 @@ module Partitioned
       # Does a specific child partition exist.
       #
       def partition_exists?(*partition_key_values)
+      
         return find(:first,
                     :from => "pg_tables",
                     :select => "count(*) as count",
@@ -58,7 +59,7 @@ module Partitioned
       end
 
       #
-      # Returns an array of partition table names from last to first limited to
+      # Returns an array of partition child table names from last to first limited to
       # the number of entries requested by its first parameter.
       #
       # The magic here is in the overridden method "last_n_partitions_order_by_clause"
@@ -80,22 +81,54 @@ module Partitioned
       #  $2 = the order by clause that would make the greatest table name listed first
       #  $3 = the parameter 'how_many'
       #
-      def last_n_partition_names(how_many = 1)
-        return find(:all,
-                    :from => "pg_tables",
-                    :select => :tablename,
-                    :conditions  => ["schemaname = ?", configurator.schema_name],
-                    :order => last_n_partitions_order_by_clause,
-                    :limit => how_many).map(&:tablename)
+      def child_partition_names(*partition_key_values)
+        return find_by_sql(child_partition_command(*partition_key_values)).map(&:tablename)
+      end
+       
+      def last_n_child_partition_names(how_many=1, *partition_key_values)
+        sql_string = child_partition_command(*partition_key_values) + <<-SQL
+          LIMIT #{how_many}
+        SQL
+        return find_by_sql(sql_string).map(&:tablename)
+      end
+
+      def child_partition_command(*partition_key_values)
+        <<-SQL
+          SELECT pg_namespace.nspname || '.' || table_class.relname AS tablename
+          FROM pg_class AS table_class
+            INNER JOIN pg_namespace ON pg_namespace.oid = table_class.relnamespace
+            INNER JOIN pg_inherits ON pg_inherits.inhrelid = table_class.oid
+            INNER JOIN pg_class AS parent_class ON parent_class.oid = pg_inherits.inhparent
+          WHERE table_class.relkind = 'r' 
+            AND pg_namespace.nspname = '#{configurator.schema_name}'
+            AND parent_class.relname = 
+              '#{partition_key_values.length > 0 ? configurator.part_name(*partition_key_values) : configurator.parent_table_name(*partition_key_values)}'
+          ORDER BY #{child_partitions_order_by_clause(*partition_key_values)}
+        SQL
       end
 
       #
       # Override this or order the tables from last (greatest value? greatest date?) to first.
       #
-      def last_n_partitions_order_by_clause
-        return configurator.last_n_partitions_order_by_clause
+      def child_partitions_order_by_clause(*partition_key_values)
+        order_string = "SPLIT_PART(SUBSTRING(table_class.relname, #{configurator.name_prefix.length + 1}), '_', #{partition_key_values.count + 1})"
+        order_type, options = configurator.child_partitions_order_type(*partition_key_values)
+        case order_type
+        when :sql
+          return options[:value]
+        when :integral
+          order_by = "CAST(#{order_string} AS INT)"
+        when :alphabetical
+          order_by = "#{order_string}"
+        end
+        if options[:direction] == :descending
+          order_by += " DESC"
+        elsif options[:direction] == :ascending
+          order_by += " ASC"
+        end
+        return order_by
       end
-
+      
       #
       # Used to create the parent table rule to ensure.
       #
@@ -110,10 +143,10 @@ module Partitioned
         insert_redirector_name = parent_table_rule_name("insert", "redirector", *partition_key_values)
         sql = <<-SQL
           CREATE OR REPLACE RULE #{insert_redirector_name} AS
-            ON INSERT TO #{configurator.parent_table_name(*partition_key_values)}
+            ON INSERT TO #{configurator.parent_table_name(*partition_key_values, nil)}
             DO INSTEAD
             (
-               SELECT always_fail_on_insert('#{configurator.parent_table_name(*partition_key_values)}')
+               SELECT always_fail_on_insert('#{configurator.parent_table_name(*partition_key_values, nil)}')
             )
         SQL
         execute(sql)
@@ -146,10 +179,10 @@ module Partitioned
       end
 
       #
-      # Remove a specific single child table.
+      # Remove a specific single child table and all of its descendants.
       #
       def drop_partition_table(*partition_key_values)
-        drop_table(configurator.table_name(*partition_key_values))
+        execute "DROP TABLE #{quote_table_name(configurator.table_name(*partition_key_values))} CASCADE"
       end
 
       #
@@ -171,7 +204,7 @@ module Partitioned
       # Used when creating the name of a SQL rule.
       #
       def parent_table_rule_name(name, suffix = "rule", *partition_key_values)
-        return "#{configurator.parent_table_name(*partition_key_values).gsub(/[.]/, '_')}_#{name}_#{suffix}"
+        return "#{configurator.parent_table_name(*partition_key_values, nil).gsub(/[.]/, '_')}_#{name}_#{suffix}"
       end
 
       #
@@ -289,7 +322,7 @@ module Partitioned
       extend Forwardable
       def_delegators :parent_table_class, :connection, :find_by_sql, :transaction, :find, :configurator
       def_delegators :connection, :execute, :add_index, :remove_index, :create_schema, :drop_schema, :add_foreign_key,
-                     :create_table, :drop_table
+                     :create_table, :drop_table, :quote_table_name
     end
   end
 end

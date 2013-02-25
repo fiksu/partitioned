@@ -44,6 +44,14 @@ module Partitioned
     end
 
     #
+    # Returns true if the partition described by partition_key_values
+    # exists exists in the database, false otherwise.
+    #
+    def self.partition_exists?(*partition_key_values)
+      return partition_manager.partition_exists?(*partition_key_values)
+    end
+
+    #
     # The specific values for a partition of this active record's type which are defined by
     # {#self.partition_keys}
     #
@@ -107,6 +115,19 @@ module Partitioned
       return @sql_adapter
     end
 
+    def self.arel_table_from_key_values(partition_key_values, as=nil)
+      @arel_tables ||= {}
+      new_arel_table = @arel_tables[[partition_key_values, as]]
+      
+      unless new_arel_table
+        arel_engine_hash = {:engine => self.arel_engine, :as => as}
+        new_arel_table = Arel::Table.new(self.partition_table_name(*partition_key_values), arel_engine_hash)
+        @arel_tables[[partition_key_values, as]] = new_arel_table
+      end
+
+      return new_arel_table
+    end
+
     #
     # In activerecord 3.0 we need to supply an Arel::Table for the key value(s) used
     # to determine the specific child table to access.
@@ -114,14 +135,9 @@ module Partitioned
     # @param [Hash] values key/value pairs for all attributes
     # @param [String] as (nil) the name of the table associated with this Arel::Table
     # @return [Arel::Table] the generated Arel::Table
-    def self.dynamic_arel_table(values, as = nil)
-      @arel_tables ||= {}
+    def self.dynamic_arel_table(values, as=nil)
       key_values = self.partition_key_values(values)
-      new_arel_table = @arel_tables[key_values]
-      arel_engine_hash = {:engine => self.arel_engine}
-      arel_engine_hash[:as] = as unless as.blank?
-      new_arel_table = Arel::Table.new(self.partition_table_name(*key_values), arel_engine_hash)
-      return new_arel_table
+      return arel_table_from_key_values(key_values, as)
     end
 
     #
@@ -130,10 +146,9 @@ module Partitioned
     #
     # @param [String] as (nil) the name of the table associated with the Arel::Table
     # @return [Arel::Table] the generated Arel::Table
-    def dynamic_arel_table(as = nil)
-      symbolized_attributes = attributes.symbolize_keys
-      key_values = Hash[*self.class.partition_keys.map{|name| [name,symbolized_attributes[name]]}.flatten]
-      return self.class.dynamic_arel_table(key_values, as)
+    def dynamic_arel_table(as=nil)
+      key_values = self.class.partition_key_values(attributes)
+      return self.class.arel_table_from_key_values(key_values, as)
     end
 
     #
@@ -149,10 +164,9 @@ module Partitioned
     #
     # @param [*Array<Object>] partition_field the field values to partition on
     # @return [Hash] the scoping
-    def self.from_partition(*partition_field)
-      table_alias_name = partition_table_alias_name(*partition_field)
-      from("#{partition_table_name(*partition_field)} AS #{table_alias_name}").
-        tap{|relation| relation.table.table_alias = table_alias_name}
+    def self.from_partition(*partition_key_values)
+      table_alias_name = partition_table_alias_name(*partition_key_values)
+      return ActiveRecord::Relation.new(self, self.arel_table_from_key_values(partition_key_values, table_alias_name))
     end
 
     #
@@ -177,10 +191,8 @@ module Partitioned
     #
     # @param [*Array<Object>] partition_field the field values to partition on
     # @return [Hash] the scoping
-    def self.from_partition_without_alias(*partition_field)
-      table_alias_name = partition_table_name(*partition_field)
-      from(table_alias_name).
-        tap{|relation| relation.table.table_alias = table_alias_name}
+    def self.from_partition_without_alias(*partition_key_values)
+      return ActiveRecord::Relation.new(self, self.arel_table_from_key_values(partition_key_values, nil))
     end
 
     #
@@ -192,6 +204,13 @@ module Partitioned
         @configurator = self::Configurator::Reader.new(self)
       end
       return @configurator
+    end
+
+    #
+    # Set the configurator for this class.
+    #
+    def self.configurator=(value)
+      @configurator = value
     end
 
     #
@@ -233,6 +252,7 @@ module Partitioned
       # the schema for its partitions will be "other_foos_partitions"
       #
       partition.schema_name lambda {|model|
+
         schema_parts = []
         table_parts = model.table_name.split('.')
         # table_parts should be either ["table_name"] or ["schema_name", "table_name"]
@@ -305,7 +325,7 @@ module Partitioned
       # A reasonable alias for this table
       #
       partition.table_alias_name lambda {|model, *partition_key_values|
-        return model.configurator.parent_table_name(*partition_key_values).gsub('.', '_')
+        return model.table_name #configurator.parent_table_name(*partition_key_values).gsub('.', '_')
       }
 
       #
@@ -317,12 +337,62 @@ module Partitioned
       partition.base_name lambda { |model, *partition_key_values|
         return model.partition_normalize_key_value(*partition_key_values).to_s
       }
+
+      #
+      # By default, just assume that the original partition key value was a string.
+      #
+      partition.key_value lambda { |model, base_name|
+        return base_name
+      }
+      
+      #
+      # If all else fails, sort alphabetically. 
+      #
+      partition.order :alphabetical, :direction => :descending
+
+      #
+      # No creates needed unless otherwise specified.
+      #
+      partition.janitorial_creates_needed lambda { |model, *partition_key_values|
+        return []
+      }
+
+      #
+      # No drops needed unless otherwise specified.
+      #
+      partition.janitorial_drops_needed lambda { |model, *partition_key_values|
+        return []
+      }
+      
+      #
+      # No archives needed unless otherwise specified.
+      #
+      partition.janitorial_archives_needed lambda { |model, *partition_key_values|
+        return []
+      }
     end
 
     #
     # this methods are hand delegated because forwardable module conflicts
     # with rails delegate.
     #
+    def self.child_partition_names(*partition_key_values)
+      partition_manager.child_partition_names(*partition_key_values)
+    end
+    
+    ##
+    # :singleton-method: last_n_child_partition_names
+    # delegated to Partitioned::PartitionBase::PartitionManager#last_n_child_partition_names
+    def self.last_n_child_partition_names(how_many=1, *partition_key_values)
+      partition_manager.last_n_child_partition_names(how_many, *partition_key_values)
+    end
+    
+    ##
+    # :singleton-method: key_values_from_partition_name
+    # delegated to Partitioned::PartitionedBase::PartitionManager#key_values_from_partition_name
+    def self.key_values_from_partition_name(partition_name)
+      partition_manager.key_values_from_partition_name(partition_name)
+    end
 
     ##
     # :singleton-method: drop_partition_table
@@ -369,22 +439,22 @@ module Partitioned
     ##
     # :method: archive_old_partitions
     # delegated to Partitioned::PartitionedBase::PartitionManager#archive_old_partitions
-    def self.archive_old_partitions
-      partition_manager.archive_old_partitions
+    def self.archive_old_partitions(*partition_key_values)
+      partition_manager.archive_old_partitions(*partition_key_values)
     end
 
     ##
     # :method: drop_old_partitions
     # delegated to Partitioned::PartitionedBase::PartitionManager#drop_old_partitions
-    def self.drop_old_partitions
-      partition_manager.drop_old_partitions
+    def self.drop_old_partitions(*partition_key_values)
+      partition_manager.drop_old_partitions(*partition_key_values)
     end
 
     ##
     # :method: create_new_partitions
     # delegated to Partitioned::PartitionedBase::PartitionManager#create_new_partitions
-    def self.create_new_partitions
-      partition_manager.create_new_partitions
+    def self.create_new_partitions(*partition_key_values)
+      partition_manager.create_new_partitions(*partition_key_values)
     end
 
     ##

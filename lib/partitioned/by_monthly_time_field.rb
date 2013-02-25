@@ -25,6 +25,10 @@ module Partitioned
       partition.base_name lambda { |model, time_field|
         return model.partition_normalize_key_value(time_field).strftime('%Y%m')
       }
+      
+      partition.key_value lambda { |model, base_name|
+        return DateTime.strptime(base_name, '%Y%m')
+      }
     end
   end
 end

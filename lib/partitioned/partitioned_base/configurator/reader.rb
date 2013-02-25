@@ -5,10 +5,12 @@ module Partitioned
       # {PartitionManager} to request partitioning information froma
       # centralized source.
       class Reader
-        attr_reader :model
+        attr_accessor :model
 
         def initialize(most_derived_activerecord_class)
+
           @model = most_derived_activerecord_class
+
           @configurators = nil
           @on_fields = nil
           @indexes = nil
@@ -19,7 +21,7 @@ module Partitioned
           @name_prefix = nil
           @base_name = nil
           @part_name = nil
-
+          @key_value = nil
           @table_name = nil
 
           @parent_table_schema_name = nil
@@ -30,7 +32,8 @@ module Partitioned
           @janitorial_creates_needed = nil
           @janitorial_archives_needed = nil
           @janitorial_drops_needed = nil
-          @after_partition_table_create_hooks = nil
+
+          @child_partitions_order_type = nil
         end
 
         #
@@ -61,6 +64,22 @@ module Partitioned
             bag[data_index.field] = (data_index.options || {}) unless data_index.blank?
             bag
           end
+        end
+      
+        #
+        # Define the order by clause used to list all child table names in order
+        # of "last to be used" to "oldest to have been used".
+        #
+        def child_partitions_order_type(*partition_key_values)
+          unless @child_partitions_order_type
+            order_type = collect_first(&:order_type)
+            if order_type.is_a? String
+              @child_partitions_order_type = [:sql, { :value => order_type }]
+            else
+              @child_partitions_order_type = [order_type.order_type, order_type.options || {}]
+            end
+          end
+          return @child_partitions_order_type
         end
 
         #
@@ -120,6 +139,13 @@ module Partitioned
         end
 
         #
+        # The key value corresponding to a specific base_name.
+        #
+        def key_value(base_name)
+          return [collect_first(base_name, &:key_value)]
+        end
+
+        #
         # The prefix for the child table's name.
         #
         def name_prefix
@@ -136,36 +162,16 @@ module Partitioned
           return collect_first(*partition_key_values, &:part_name)
         end
 
-        #
-        # Define the order by clause used to list all child table names in order
-        # of "last to be used" to "oldest to have been used".
-        #
-        def last_partitions_order_by_clause
-          unless @last_partitions_order_by_clause
-            @last_partitions_order_by_clause = collect_first(&:last_partitions_order_by_clause)
-          end
-          return @last_partitions_order_by_clause
+        def janitorial_creates_needed(*partition_key_values)
+          return collect_first(*partition_key_values, &:janitorial_creates_needed)
         end
 
-        def janitorial_creates_needed
-          unless @janitorial_creates_needed
-            @janitorial_creates_needed = collect_first(&:janitorial_creates_needed)
-          end
-          return @janitorial_creates_needed
+        def janitorial_archives_needed(*partition_key_values)
+          return collect_first(*partition_key_values, &:janitorial_archives_needed)
         end
 
-        def janitorial_archives_needed
-          unless @janitorial_archives_needed
-            @janitorial_archives_needed = collect_first(&:janitorial_archives_needed)
-          end
-          return @janitorial_archives_needed
-        end
-
-        def janitorial_drops_needed
-          unless @janitorial_drops_needed
-            @janitorial_drops_needed = collect_first(&:janitorial_drops_needed)
-          end
-          return @janitorial_drops_needed
+        def janitorial_drops_needed(*partition_key_values)
+          return collect_first(*partition_key_values, &:janitorial_drops_needed)
         end
 
         def run_after_partition_table_create_hooks(*partition_key_values)
@@ -174,7 +180,7 @@ module Partitioned
 
         protected
 
-        def configurators
+        def configurators(*partition_key_values)
           unless @configurators
             @configurators = []
             model.ancestors.each do |ancestor|
@@ -191,7 +197,7 @@ module Partitioned
 
         def collect(*partition_key_values, &block)
           values = []
-          configurators.each do |configurator|
+          configurators(*partition_key_values).each do |configurator|
             data = configurator.data
 
             intermediate_value = block.call(data) rescue nil
@@ -208,7 +214,7 @@ module Partitioned
         end
 
         def collect_first(*partition_key_values, &block)
-          configurators.each do |configurator|
+          configurators(*partition_key_values).each do |configurator|
             data = configurator.data
             intermediate_value = block.call(data) rescue nil
             if intermediate_value.is_a? Proc
@@ -225,7 +231,7 @@ module Partitioned
 
         def collect_from_collection(*partition_key_values, &block)
           values = []
-          configurators.each do |configurator|
+          configurators(*partition_key_values).each do |configurator|
             data = configurator.data
             intermediate_values = []
             intermediate_values = block.call(data) rescue nil
