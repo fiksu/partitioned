@@ -141,7 +141,8 @@ module Partitioned
                        :id => false,
                        :options => "INHERITS (#{configurator.parent_table_name(*partition_key_values)})"
                      }) do |t|
-          t.check_constraint configurator.check_constraint(*partition_key_values)
+          constraint = configurator.check_constraint(*partition_key_values)
+          t.check_constraint constraint if constraint
         end
       end
 
