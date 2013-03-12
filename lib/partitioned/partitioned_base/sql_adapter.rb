@@ -93,7 +93,7 @@ module Partitioned
       # Override this or order the tables from last (greatest value? greatest date?) to first.
       #
       def last_n_partitions_order_by_clause
-        return configurator.last_n_partitions_order_by_clause
+        return configurator.last_partitions_order_by_clause
       end
 
       #
