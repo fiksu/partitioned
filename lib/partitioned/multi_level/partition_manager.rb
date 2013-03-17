@@ -17,8 +17,6 @@ module Partitioned
         end
       end
 
-      protected
-
       #
       # Create a specific child table that does not currently
       # exist and whose schema (the schema that the table exists in)
@@ -36,6 +34,8 @@ module Partitioned
           add_parent_table_rules(*partition_key_values)
         end
       end
+
+      protected
 
       #
       # Is the table a child table without itself having any children.
