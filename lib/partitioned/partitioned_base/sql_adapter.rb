@@ -110,10 +110,10 @@ module Partitioned
         insert_redirector_name = parent_table_rule_name("insert", "redirector", *partition_key_values)
         sql = <<-SQL
           CREATE OR REPLACE RULE #{insert_redirector_name} AS
-            ON INSERT TO #{configurator.parent_table_name(*partition_key_values)}
+            ON INSERT TO #{configurator.table_name(*partition_key_values)}
             DO INSTEAD
             (
-               SELECT always_fail_on_insert('#{configurator.parent_table_name(*partition_key_values)}')
+               SELECT always_fail_on_insert('#{configurator.table_name(*partition_key_values)}')
             )
         SQL
         execute(sql)
@@ -172,7 +172,7 @@ module Partitioned
       # Used when creating the name of a SQL rule.
       #
       def parent_table_rule_name(name, suffix = "rule", *partition_key_values)
-        return "#{configurator.parent_table_name(*partition_key_values).gsub(/[.]/, '_')}_#{name}_#{suffix}"
+        return "#{configurator.table_name(*partition_key_values).gsub(/[.]/, '_')}_#{name}_#{suffix}"
       end
 
       #

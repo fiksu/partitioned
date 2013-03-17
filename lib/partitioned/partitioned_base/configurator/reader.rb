@@ -102,7 +102,11 @@ module Partitioned
         # The full name of a child table defined by the partition key values.
         #
         def table_name(*partition_key_values)
-          return collect_first(*partition_key_values, &:table_name)
+          if partition_key_values.length < 1
+            return model.table_name
+          else
+            return collect_first(*partition_key_values, &:table_name)
+          end
         end
 
         #
