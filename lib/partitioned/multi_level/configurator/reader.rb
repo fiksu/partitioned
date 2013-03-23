@@ -5,6 +5,10 @@ module Partitioned
       # {PartitionManager} to request partitioning information froma
       # centralized source from multi level partitioned models
       class Reader < Partitioned::PartitionedBase::Configurator::Reader
+        
+        alias :base_collect_from_collection :collect_from_collection
+        alias :base_collect :collect
+        
         # configurator for a specific class level
         UsingConfigurator = Struct.new(:model, :sliced_class, :dsl)
 
@@ -20,7 +24,7 @@ module Partitioned
         # @return [Array<Symbol>] fields used to partition this model
         def on_fields
           unless @on_fields
-            @on_fields = using_collect(&:on_field).map(&:to_sym)
+            @on_fields = collect(&:on_field).map(&:to_sym)
           end
           return @on_fields
         end
@@ -65,6 +69,35 @@ module Partitioned
           index = partition_key_values.length - 1
           value = partition_key_values[index]
           return using_configurator(index).check_constraint(value)
+        end
+
+        def indexes(*partition_key_values)
+          bag = {}
+          partition_key_values.each_with_index do |key_value, index|
+            bag.merge!(using_configurator(index).indexes(key_value))
+          end
+          base_collect_from_collection(*partition_key_values, &:indexes).inject(bag) do |bag, data_index|
+            bag[data_index.field] = (data_index.options || {}) unless data_index.blank?
+            bag
+          end
+        end
+        
+        #
+        # Foreign keys to create on each leaf partition.
+        #
+        def foreign_keys(*partition_key_values)
+          set = Set.new
+          partition_key_values.each_with_index do |key_value, index|
+            set.merge(using_configurator(index).foreign_keys(key_value))
+          end
+          base_collect_from_collection(*partition_key_values, &:foreign_keys).inject(set) do |set, new_items|
+            if new_items.is_a? Array
+              set += new_items
+            else
+              set += [new_items]
+            end
+            set
+          end
         end
 
         #
@@ -117,14 +150,14 @@ module Partitioned
 
         def using_classes
           unless @using_classes
-            @using_classes = collect_from_collection(&:using_classes).inject([]) do |array,new_items|
+            @using_classes = base_collect_from_collection(&:using_classes).inject([]) do |array,new_items|
               array += [*new_items]
             end.to_a
           end
           return @using_classes
         end
 
-        def using_collect(*partition_key_values, &block)
+        def collect(*partition_key_values, &block)
           values = []
           using_configurators.each do |using_configurator|
             data = using_configurator.dsl.data
@@ -137,25 +170,10 @@ module Partitioned
               values << intermediate_value unless intermediate_value.blank?
             end
           end
-          return values
+          return base_collect(*partition_key_values, &block) + values
         end
 
-        def using_collect_first(*partition_key_values, &block)
-          using_configurators.each do |using_configurator|
-            data = using_configurator.dsl.data
-            intermediate_value = block.call(data) rescue nil
-            if intermediate_value.is_a? Proc
-              return intermediate_value.call(using_configurator.model, *partition_key_values)
-            elsif intermediate_value.is_a? String
-              return eval("\"#{intermediate_value}\"")
-            else
-              return intermediate_value unless intermediate_value.nil?
-            end
-          end
-          return nil
-        end
-
-        def using_collect_from_collection(*partition_key_values, &block)
+        def collect_from_collection(*partition_key_values, &block)
           values = []
           using_configurators.each do |using_configurator|
             data = using_configurator.dsl.data
@@ -171,7 +189,7 @@ module Partitioned
               end
             end
           end
-          return values
+          return base_collect_from_collection(*partition_key_values, &block) + values
         end
 
       end
