@@ -68,6 +68,14 @@ module Partitioned
       end
 
       #
+      # The once called function to drop a parent the schema.
+      #
+      def delete_infrastructure
+        drop_partition_schema
+        remove_parent_table_rules
+      end
+
+      #
       # An array of key values (each key value is an array of keys) that represent
       # the child partitions that should be created.
       #
@@ -173,8 +181,8 @@ module Partitioned
       extend Forwardable
       def_delegators :parent_table_class, :sql_adapter, :configurator
       def_delegators :sql_adapter, :drop_partition_table, :create_partition_table, :add_partition_table_index,
-         :add_references_to_partition_table, :create_partition_schema, :add_parent_table_rules,
-         :partition_table_name, :partition_table_alias_name
+         :add_references_to_partition_table, :create_partition_schema, :drop_partition_schema, :add_parent_table_rules,
+         :remove_parent_table_rules, :partition_table_name, :partition_table_alias_name
 
     end
   end

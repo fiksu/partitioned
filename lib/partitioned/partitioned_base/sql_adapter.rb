@@ -45,6 +45,15 @@ module Partitioned
       end
 
       #
+      # Child tables whose parent table is 'foos', typically exist in a schema named foos_partitions.
+      #
+      # *partition_key_values are needed here to support the use of multiple schemas to keep tables in.
+      #
+      def drop_partition_schema(*partition_key_values)
+        drop_schema(configurator.schema_name, :cascade => true)
+      end
+
+      #
       # Does a specific child partition exist.
       #
       def partition_exists?(*partition_key_values)
@@ -115,6 +124,18 @@ module Partitioned
             (
                SELECT always_fail_on_insert('#{configurator.table_name(*partition_key_values)}')
             )
+        SQL
+        execute(sql)
+      end
+
+      #
+      # Used to drop the parent table rule.
+      #
+      def remove_parent_table_rules(*partition_key_values)
+        insert_redirector_name = parent_table_rule_name("insert", "redirector", *partition_key_values)
+        sql = <<-SQL
+          DROP RULE #{insert_redirector_name}
+            ON INSERT CASCADE
         SQL
         execute(sql)
       end
