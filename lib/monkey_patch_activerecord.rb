@@ -3,6 +3,7 @@ require 'active_record/base'
 require 'active_record/connection_adapters/abstract_adapter'
 require 'active_record/relation.rb'
 require 'active_record/persistence.rb'
+require 'active_record/relation/query_methods.rb'
 
 #
 # Patching {ActiveRecord} to allow specifying the table name as a function of
@@ -71,6 +72,24 @@ module ActiveRecord
       id
     end
   end
+ 
+  #
+  # A patch to QueryMethods to change default behavior of select
+  # to use the Relation's Arel::Table.
+  #
+  module QueryMethods
+
+    def build_select(arel, selects)
+      unless selects.empty?
+        @implicit_readonly = false
+        arel.project(*selects)
+      else
+        arel.project(table[Arel.star])
+      end
+    end
+
+  end
+
   #
   # Patches for relation to allow back hooks into the {ActiveRecord}
   # requesting name of table as a function of attributes.
