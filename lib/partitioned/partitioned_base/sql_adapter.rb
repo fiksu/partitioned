@@ -135,7 +135,7 @@ module Partitioned
         insert_redirector_name = parent_table_rule_name("insert", "redirector", *partition_key_values)
         sql = <<-SQL
           DROP RULE #{insert_redirector_name}
-            ON INSERT CASCADE
+            ON #{configurator.table_name(*partition_key_values)} CASCADE
         SQL
         execute(sql)
       end
