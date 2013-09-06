@@ -427,6 +427,13 @@ module Partitioned
     end
 
     ##
+    # :method: delete_infrastructure
+    # delegated to Partitioned::PartitionedBase::PartitionManager#delete_infrastructure
+    def self.delete_infrastructure
+      partition_manager.delete_infrastructure
+    end
+
+    ##
     # :method: partition_table_name
     # delegated to Partitioned::PartitionedBase::PartitionManager#partition_table_name
     def self.partition_table_name(*partition_key_values)
