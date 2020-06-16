@@ -10,7 +10,7 @@ shared_examples_for "check that basic operations with postgres works correctly f
   context "when try to create one record" do
 
     it "record created" do
-      expect { subject.create(:name => 'Phil', :company_id => 3, :created_at => DATE_NOW + 1)
+      expect { subject.create(:name => 'Phil', :company_id => 3, :created_at => DATE_NOW + 1, :tags => ['IT', 'Finance'])
       }.not_to raise_error
     end
 
@@ -20,7 +20,7 @@ shared_examples_for "check that basic operations with postgres works correctly f
 
     it "record created" do
       expect {
-        instance = subject.new(:name => 'Mike', :company_id => 1, :created_at => DATE_NOW + 1)
+        instance = subject.new(:name => 'Mike', :company_id => 1, :created_at => DATE_NOW + 1, :tags => ['IT', 'Finance'])
         instance.save!
       }.not_to raise_error
     end
@@ -79,6 +79,12 @@ shared_examples_for "check that basic operations with postgres works correctly f
       result = subject.find(1)
       expect(result.name).to eq "Kevin"
       expect(result.created_at).to eq original_created_at
+    end
+
+    it "updates array attributes" do
+      subject.update(1, :tags => ['Sales', 'Marketing'])
+      result = subject.find(1)
+      expect(result.tags).to eq ['Sales', 'Marketing']
     end
 
   end # when try to update a record with id = 1

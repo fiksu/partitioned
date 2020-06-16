@@ -1,4 +1,5 @@
+# frozen_string_literal: true
+
 module Partitioned
-  # the current version of this gem
-  VERSION = "2.1.0"
+  VERSION = '3.0.0.jora-pre1'
 end

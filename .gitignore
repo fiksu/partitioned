@@ -1,5 +1,4 @@
 .ruby-version
-Gemfile.lock
 /spec/dummy/log
 /pkg
 /.bundle

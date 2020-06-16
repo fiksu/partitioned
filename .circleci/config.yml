@@ -1,0 +1,85 @@
+version: 2.1
+
+executors:
+  rubocop:
+    docker:
+      - image: jobseeker/docker-library:ruby-2.4-rubocop
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+
+commands:
+  rspec:
+    steps:
+      - checkout
+      - run:
+          name: Install psql
+          command: sudo apt-get install -y postgresql-client
+      - run:
+          name: Wait for DB
+          command: dockerize -wait tcp://localhost:5432 -timeout 1m
+      - run:
+          name: Bundle dependencies
+          command: bundle install --path vendor/bundle --frozen
+      - run:
+          name: Initialise database
+          command: |
+            createdb -U postgres -h localhost part_test
+            psql -U postgres -h localhost -d part_test < support/docker-entrypoint-initdb.d/migrations.sql
+      - run:
+          name: Run tests
+          command: bundle exec rspec
+      - run:
+          name: Simulate building the gem
+          command: gem build *.gemspec
+
+jobs:
+  ruby_2_4:
+    docker:
+      - image: circleci/ruby:2.4
+      - image: circleci/postgres:9.5-alpine
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: part_production
+          POSTGRES_PASSWORD: postgres
+    steps:
+      - rspec
+
+  lint:
+    executor: rubocop
+    steps:
+      - checkout
+      - run: pronto run -c origin/master --exit-code
+
+  publish_gem:
+    docker:
+      - image: jobseeker/docker-library:ruby-gem-publisher
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    working_directory: /source
+    steps:
+      - checkout
+      - run:
+          name: Setup GitHub token
+          command: GITHUB_TOKEN=$GITHUB_PACKAGE_PUBLISH_ACCESS_TOKEN /opt/github_auth.sh
+      - run:
+          name: Build (and release) the gem
+          command: rake -f /opt/Rakefile release
+
+workflows:
+  version: 2
+  rspecs:
+    jobs:
+      - ruby_2_4
+      - lint:
+          context: org-global
+          filters:
+            branches:
+              ignore: master
+      - publish_gem:
+          context: org-global
+          requires:
+            - ruby_2_4
+          filters:
+            branches: { only: master }
